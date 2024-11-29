@@ -1,36 +1,55 @@
-name: Tests
+name: PipelineFlask
 
-#############################
-# Start the job on all push #
-#############################
-on: [push, pull_request]
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "DEV" ]
 
 jobs:
-  tests:
-    name: Python ${{ matrix.python-version }} Flask ${{ matrix.flask-version }}
-    runs-on: ubuntu-20.04
-    environment: test
-
-    strategy:
-      matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
-        flask-version: ["2.3.2", "3.0.0"]
+  build:
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      # Passo 1: Fazer checkout do código
+      - uses: actions/checkout@v4
+
+      # Passo 2: Configurar Python 3.10
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.10"
+
+      # Passo 3: Instalar dependências do projeto
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install pipenv
-          python --version; pip --version; pipenv --version
-          pipenv run pip install flask==${{ matrix.flask-version }}
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # Passo 4: Executar os testes
       - name: Run tests
+        run: coverage run -m pytest
+
+      # Passo 5: Relatório de cobertura de teste
+      - name: Test Coverage Report
+        run: coverage report -m
+
+      # Passo 6: Deploy no Render (DEV)
+      - name: Render Deploy Action
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.RENDER_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+
+      # Passo 7: Deploy no EC2 - AWS (PROD)
+      - name: Deploy to AWS EC2
         run: |
-          make check
-          make test
-        env:
-          RANDOM_SEED: 0
+          echo "Conectando no EC2"
+          echo "${{ secrets.AWS_KEY }}" > private_key
+          chmod 600 private_key
+          ssh -i "ativ_python.pem" ubuntu@ec2-98-84-236-109.compute-1.amazonaws.com
+            cd cd /home/ubuntu/projeto_python
+            git pull;
+            ./example.sh"
+
